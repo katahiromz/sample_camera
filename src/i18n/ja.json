@@ -4,5 +4,6 @@
 	"recording": "動画撮影",
 	"stop_recording": "録画停止",
 	"switching_camera": "カメラ切り替え中...",
-	"retry": "再試行"
+	"retry": "再試行",
+	"cant_use_camera": "カメラのアクセス権限が拒否されています。アプリまたはブラウザの設定から許可してください。"
 }

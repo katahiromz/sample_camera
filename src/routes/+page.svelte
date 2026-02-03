@@ -41,7 +41,7 @@
     const unsubscribe = cameraPermissionManager.subscribe((status: PermissionStatusValue) => {
       console.log(`Camera permission status changed to: ${status}`);
       if (status === 'denied') {
-        cameraError = "カメラのアクセス権限が拒否されています。ブラウザの設定から許可してください。";
+        cameraError = $_('cant_use_camera');
       } else if (status === 'granted' && cameraError) {
         // 拒否から許可に変わった場合はエラーをクリアして再起動を試みる
         cameraError = null;
@@ -114,9 +114,9 @@
         // 音声が取れなかったので状態を更新
         isAudioEnabled = false;
       } catch (err) {
-        // 3. 映像すら取れない場合のみ、本当のエラーとする
+        // 映像すら取れない場合のみ、本当のエラーとする
         console.error("カメラのアクセスに完全に失敗しました:", err);
-        cameraError = "カメラにアクセスできません。設定を確認してください。";
+        cameraError = $_('cant_use_camera');
         return; // ここで中断
       }
     }
@@ -309,39 +309,40 @@
 
   // 動画撮影
   function toggleRecording() {
-    if (!isRecording) {
-      recordedChunks = [];
-
-      // キャンバスから映像トラックを取得
-      const canvasStream = canvas.captureStream(30);
-      const videoTrack = canvasStream.getVideoTracks()[0];
-
-      // マイクが有効な場合のみ音声トラックを探して追加
-      const combinedStream = new MediaStream([videoTrack]);
-      if (isAudioEnabled) {
-        const audioTrack = stream.getAudioTracks()[0];
-        if (audioTrack) {
-          combinedStream.addTrack(audioTrack);
-        }
-      }
-
-      // 合成したストリームで録画開始
-      mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
-      mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = `video_${Date.now()}.webm`;
-        link.href = url;
-        link.click();
-      };
-      mediaRecorder.start();
-      isRecording = true;
-    } else {
+    if (isRecording) {
       mediaRecorder.stop();
       isRecording = false;
+      return;
     }
+
+    recordedChunks = [];
+
+    // キャンバスから映像トラックを取得
+    const canvasStream = canvas.captureStream(30);
+    const videoTrack = canvasStream.getVideoTracks()[0];
+
+    // マイクが有効な場合のみ音声トラックを探して追加
+    const combinedStream = new MediaStream([videoTrack]);
+    if (isAudioEnabled) {
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        combinedStream.addTrack(audioTrack);
+      }
+    }
+
+    // 合成したストリームで録画開始
+    mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+    mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = `video_${Date.now()}.webm`;
+      link.href = url;
+      link.click();
+    };
+    mediaRecorder.start();
+    isRecording = true;
   }
 </script>
 
@@ -428,14 +429,12 @@
 
   .controls {
     position: absolute;
-    bottom: 1vh;
-    bottom: 1dvh;
+    bottom: 1%;
     left: 0;
     right: 0;
     display: flex;
     justify-content: center;
-    gap: 2vw;
-    gap: 2dvw;
+    gap: 2%;
     padding: 0 5px;
   }
 
@@ -451,8 +450,7 @@
     padding: 6px 10px;
     border-radius: 12px;
     cursor: pointer;
-    min-width: 5vw;
-    min-width: 5dvw;
+    min-width: 5%;
     transition: all 0.2s;
   }
 

@@ -4,5 +4,6 @@
 	"recording": "Recording",
 	"stop_recording": "Stop",
 	"switching_camera": "Switching camera...",
-	"retry": "Retry"
+	"retry": "Retry",
+	"cant_use_camera": "Camera access permission has been denied. Please allow it in your app or browser settings."
 }
