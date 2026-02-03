@@ -4,27 +4,27 @@
   import { getLocalDateTimeString } from '../lib/util.ts'
 
   let stream: MediaStream | null = null; // ストリームを停止するために保持
-  let video: HTMLVideoElement | null = null;
-  let canvas: HTMLCanvasElement | null = null;
-  let ctx: CanvasRenderingContext2D | null = null;
+  let video: HTMLVideoElement | null = null; // <video>要素
+  let canvas: HTMLCanvasElement | null = null; // <canvas>要素
   let width: number = 0, height: number = 0; // キャンバスのサイズ
+  const iconSize: number = 32; // アイコンのサイズ
 
   // ズーム・状態管理
-  let zoomLevel: number = 1; // 1.0 to 3.0
+  const MIN_ZOOM = 1, MAX_ZOOM = 3; // ズーム倍率の制限
+  let isZoomEnabled: boolean = true; // ズームが有効か？
+  let isPanEnabled: boolean = true; // パン操作が有効か？
+  let zoomLevel: number = 1; // ズーム倍率
   let offsetX: number = 0, offsetY: number = 0; // ずらし
-  let isDragging: boolean = false;
+  let isDragging: boolean = false; // ドラッグ中か？
   let lastMouseX: number = 0, lastMouseY: number = 0;
   let lastDist: number = 0;
 
   // カメラ・録画状態
-  let isRecording: boolean = false;
-  let mediaRecorder: MediaRecorder | null;
-  let recordedChunks: Blob[] = [];
-  let facingMode: string = 'user';
-  let isAudioEnabled: boolean = true;
-
-  // その他
-  const iconSize: number = 32; // アイコンのサイズ
+  let isRecording: boolean = false; // 録画中か？
+  let isAudioEnabled: boolean = true; // 音声が有効か？
+  let mediaRecorder: MediaRecorder | null; // メディアレコーダー
+  let recordedChunks: Blob[] = []; // 録画中のチャンク群
+  let facingMode: string = 'user'; // カメラの向き (前面 'user' / 背面 'environment')
 
   onMount(async () => {
     let fMode = localStorage.getItem('SampleCamera_facingMode');
@@ -41,8 +41,6 @@
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
-
-    ctx = canvas.getContext('2d');
 
     if (isAudioEnabled) {
       try {
@@ -108,8 +106,11 @@
         canvas.height = video.videoHeight;
       }
 
-      const w = canvas.width;
-      const h = canvas.height;
+      // 描画コンテキスト
+      let ctx: CanvasRenderingContext2D | null = canvas.getContext('2d');
+
+      // キャンバスのサイズ
+      const w = canvas.width, h = canvas.height;
 
       // ズーム領域の計算
       const sw = w / zoomLevel;
@@ -117,16 +118,15 @@
       const sx = (w - sw) / 2 + offsetX;
       const sy = (h - sh) / 2 + offsetY;
 
-      // 1. カメラ映像を描画 (ズーム適用)
+      // カメラ映像を描画 (ズーム適用)
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
 
-      // 2. 日時を印字
+      // 日時を印字。右下にマージンを持って配置
       const timeStr = getLocalDateTimeString();
       ctx.font = `${w * 0.03}px monospace`;
       ctx.fillStyle = "#0f0";
       ctx.strokeStyle = "black";
       ctx.lineWidth = 3;
-      // 右下にマージンを持って配置
       const margin = 8;
       ctx.textAlign = "right";
       ctx.strokeText(timeStr, w - margin, h - margin);
@@ -136,10 +136,12 @@
 
   // 共通のパン位置補正関数
   function clampOffsets() {
-    const maxOffX = (canvas.width - canvas.width / zoomLevel) / 2;
-    const maxOffY = (canvas.height - canvas.height / zoomLevel) / 2;
-    offsetX = Math.min(Math.max(offsetX, -maxOffX), maxOffX);
-    offsetY = Math.min(Math.max(offsetY, -maxOffY), maxOffY);
+    if (isPanEnabled) {
+      const maxOffX = (canvas.width - canvas.width / zoomLevel) / 2;
+      const maxOffY = (canvas.height - canvas.height / zoomLevel) / 2;
+      offsetX = Math.min(Math.max(offsetX, -maxOffX), maxOffX);
+      offsetY = Math.min(Math.max(offsetY, -maxOffY), maxOffY);
+    }
   }
 
   // マウス/ドラッグ操作 (パン)
@@ -151,74 +153,88 @@
     }
   }
 
+  // マウスまたはタッチが動いた？
   function handleMouseMove(e: MouseEvent | TouchEvent) {
-    // 1本指またはマウス左ボタンでのドラッグ
-    if (isDragging && (!e.touches || e.touches.length === 1)) {
-      const clientX = e.clientX || e.touches[0].clientX;
-      const clientY = e.clientY || e.touches[0].clientY;
-      
-      const dx = (lastMouseX - clientX) * (1 / zoomLevel);
-      const dy = (lastMouseY - clientY) * (1 / zoomLevel);
+    if (isPanEnabled) {
+      // 1本指またはマウス左ボタンでのドラッグ
+      if (isDragging && (!e.touches || e.touches.length === 1)) {
+        const clientX = e.clientX || e.touches[0].clientX;
+        const clientY = e.clientY || e.touches[0].clientY;
 
-      offsetX += dx;
-      offsetY += dy;
+        const dx = (lastMouseX - clientX) * (1 / zoomLevel);
+        const dy = (lastMouseY - clientY) * (1 / zoomLevel);
 
-      // 範囲制限（映像の外に行き過ぎないように）
-      const maxOffX = (canvas.width - canvas.width / zoomLevel) / 2;
-      const maxOffY = (canvas.height - canvas.height / zoomLevel) / 2;
-      offsetX = Math.min(Math.max(offsetX, -maxOffX), maxOffX);
-      offsetY = Math.min(Math.max(offsetY, -maxOffY), maxOffY);
+        offsetX += dx;
+        offsetY += dy;
 
-      lastMouseX = clientX;
-      lastMouseY = clientY;
+        // 範囲制限（映像の外に行き過ぎないように）
+        const maxOffX = (canvas.width - canvas.width / zoomLevel) / 2;
+        const maxOffY = (canvas.height - canvas.height / zoomLevel) / 2;
+        offsetX = Math.min(Math.max(offsetX, -maxOffX), maxOffX);
+        offsetY = Math.min(Math.max(offsetY, -maxOffY), maxOffY);
+
+        lastMouseX = clientX;
+        lastMouseY = clientY;
+      }
     }
   }
 
+  function handleTouchMoveCombined(e: TouchEvent) {
+    if (e.touches.length === 1) {
+      handleMouseMove(e); // 1本指ならパン操作
+    } else if (e.touches.length === 2) {
+      handleTouchMove(e); // 2本指ならズーム操作
+    }
+  }
+
+  // マウスのボタンが離れた？
   function handleMouseUp() {
     isDragging = false;
+  }
+
+  // ズーム倍率を制限する
+  function clampZoomLevel(level: number) {
+    return Math.min(Math.max(MIN_ZOOM, level), MAX_ZOOM);
   }
 
   // ピンチズーム処理
   function handleTouchMove(e: MouseEvent | TouchEvent) {
     if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].pageX - e.touches[1].pageX,
-        e.touches[0].pageY - e.touches[1].pageY
-      );
-      if (lastDist > 0) {
-        const delta = (dist - lastDist) / 100;
-        zoomLevel = Math.min(Math.max(1, zoomLevel + delta), 3);
+      if (isZoomEnabled) {
+        const dist = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        if (lastDist > 0) {
+          const delta = (dist - lastDist) / 100;
+          zoomLevel = clampZoomLevel(zoomLevel + delta);
 
-        // ピンチズーム時も端の隙間を補正
-        clampOffsets();
+          // ピンチズーム時も端の隙間を補正
+          clampOffsets();
+        }
+        lastDist = dist;
       }
-      lastDist = dist;
     }
   }
 
+  // タッチが終わった？
   function handleTouchEnd() {
     lastDist = 0;
   }
 
   // マウスホイールでのズーム処理
   function handleWheel(e: MouseEvent | TouchEvent) {
-    // Ctrlキーが押されている場合のみズーム動作をさせる（一般的な挙動に合わせる）
-    if (e.ctrlKey) {
-      // e.deltaY は下スクロールで正、上スクロールで負の値
-      // スクロール方向に応じてズーム倍率を増減
-      const zoomSpeed = 0.002;
-      const delta = -e.deltaY * zoomSpeed;
+    if (isZoomEnabled) {
+      // Ctrlキーが押されている場合のみズーム動作をさせる（一般的な挙動に合わせる）
+      if (e.ctrlKey) {
+        // e.deltaY は下スクロールで正、上スクロールで負の値
+        // スクロール方向に応じてズーム倍率を増減
+        const zoomSpeed = 0.002;
+        const delta = -e.deltaY * zoomSpeed;
+        zoomLevel = clampZoomLevel(zoomLevel + delta);
 
-      // 1.0倍から3.0倍の間に制限 
-      zoomLevel = Math.min(Math.max(1, zoomLevel + delta), 3);
-
-      // ズームアウトしたときに端に隙間ができないよう補正
-      clampOffsets();
-
-      // 等倍に戻ったらパンもリセット
-      if (zoomLevel === 1) {
-        offsetX = 0;
-        offsetY = 0;
+        // ズームアウトしたときに端に隙間ができないよう補正
+        clampOffsets();
       }
     }
   }
@@ -276,15 +292,14 @@
   <canvas
     bind:this={canvas}
     on:mousedown={handleMouseDown}
-    on:touchstart={handleMouseDown}
+    on:touchstart|nonpassive={handleMouseDown}
     on:mousemove={handleMouseMove}
-    on:touchmove={handleMouseMove}
-    on:touchmove={handleTouchMove}
+    on:touchmove|nonpassive={handleTouchMoveCombined}
     on:mouseup={handleMouseUp}
     on:touchend={handleTouchEnd}
-    on:wheel|preventDefault={handleWheel}
+    on:wheel|preventDefault|nonpassive={handleWheel}
     class="preview-canvas"
-    style="cursor: {zoomLevel > 1 ? 'move' : 'default'}"
+    style="cursor: {isPanEnabled && zoomLevel > 1 ? 'move' : 'default'}"
   ></canvas>
 
   <div class="controls">
@@ -300,7 +315,7 @@
 
     <button on:click={toggleRecording} class="btn video" class:recording={isRecording}>
       <Icon icon={isRecording ? "solar:stop-circle-linear" : "solar:videocamera-record-linear"} width={iconSize} />
-      <span>{isRecording ? '停止' : '動画撮影'}</span>
+      <span>{isRecording ? '停止' : '動画録画'}</span>
     </button>
   </div>
 </main>
@@ -368,7 +383,8 @@
   }
 
   .btn span {
-    font-size: 12px;
+    font-size: calc(0.8vw + 0.8vh);
+    font-size: calc(0.8dvw + 0.8dvh);
   }
 
   .btn:active {
