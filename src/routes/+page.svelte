@@ -44,45 +44,41 @@
       stream.getTracks().forEach(track => track.stop());
     }
 
-    if (isAudioEnabled) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1080, max: 1080 },
-            height: { ideal: 1080, max: 1080 },
-          },
-          audio: true,
-        });
-      } catch (err) {
-        isAudioEnabled = false;
-      }
-    }
-
     try {
-      if (!isAudioEnabled) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1080, max: 1080 },
-            height: { ideal: 1080, max: 1080 },
-          },
-          audio: isAudioEnabled,
-        });
-      }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 1080, max: 1080 },
+          height: { ideal: 1080, max: 1080 },
+        },
+        audio: { ideal: isAudioEnabled },
+      });
 
       // 実際のfacingModeを取得
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         const settings = videoTrack.getSettings();
         let actualFacingMode = settings.facingMode || 'unknown';
-        console.log("実際のfacingMode:", actualFacingMode);
         localStorage.setItem('SampleCamera_facingMode', actualFacingMode);
         facingMode = actualFacingMode;
+        console.log("facingMode:", actualFacingMode);
       }
+
+      // 音声があるかどうかを確認
+      let hasAudioTrack = false;
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks && audioTracks.length > 0) {
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          hasAudioTrack = true;
+        }
+      }
+      isAudioEnabled = hasAudioTrack;
+      console.log("isAudioEnabled:", isAudioEnabled);
 
       video.srcObject = stream;
       video.play();
+
       // 初回のみdrawを開始（既に動いている場合は何もしない）
       if (!window.animationFrameId) {
          const tick = () => {

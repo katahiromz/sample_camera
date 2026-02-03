@@ -21,7 +21,17 @@
 </svelte:head>
 
 {#await i18nReady}
-	<div style="color: white; text-align: center; margin-top: 20%;">Loading...</div>
+	<div style="
+		color: white; 
+		display: flex; 
+		justify-content: center; 
+		align-items: center; 
+		height: 100vh; 
+		height: 100dvh;
+		width: 100vw;
+	">
+		Loading...
+	</div>
 {:then}
 	{@render children()}
 {/await}
