@@ -68,7 +68,7 @@
       if (videoTrack) {
         const settings = videoTrack.getSettings();
         let actualFacingMode = settings.facingMode || 'unknown';
-        console.log("実際の動作モード:", actualFacingMode);
+        console.log("実際のfacingMode:", actualFacingMode);
         localStorage.setItem('SampleCamera_facingMode', actualFacingMode);
         facingMode = actualFacingMode;
       }
