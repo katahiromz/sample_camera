@@ -21,6 +21,7 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
-		"@iconify/svelte": "^5.2.1"
+		"@iconify/svelte": "^5.2.1",
+		"svelte-i18n": "^4.0.1"
 	}
 }

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Icon from '@iconify/svelte';
   import { getLocalDateTimeString } from '../lib/util.ts'
+  import { _ } from 'svelte-i18n';
 
   let stream: MediaStream | null = null; // ストリームを停止するために保持
   let video: HTMLVideoElement | null = null; // <video>要素
@@ -305,17 +306,17 @@
   <div class="controls">
     <button on:click={toggleCamera} class="btn switchCamera">
       <Icon icon="solar:camera-rotate-linear" width={iconSize} />
-      <span>カメラ切替</span>
+      <span>{$_('switch_camera')}</span>
     </button>
 
     <button on:click={takePhoto} class="btn photo">
       <Icon icon="solar:camera-linear" width={iconSize} />
-      <span>写真撮影</span>
+      <span>{$_('take_photo')}</span>
     </button>
 
     <button on:click={toggleRecording} class="btn video" class:recording={isRecording}>
       <Icon icon={isRecording ? "solar:stop-circle-linear" : "solar:videocamera-record-linear"} width={iconSize} />
-      <span>{isRecording ? '停止' : '動画録画'}</span>
+      <span>{isRecording ? $_('stop-recording') : $_('recording')}</span>
     </button>
   </div>
 </main>
