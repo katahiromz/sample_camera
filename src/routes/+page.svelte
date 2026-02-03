@@ -47,7 +47,11 @@
     if (isAudioEnabled) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode },
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1080, max: 1080 },
+            height: { ideal: 1080, max: 1080 },
+          },
           audio: true,
         });
       } catch (err) {
@@ -58,7 +62,11 @@
     try {
       if (!isAudioEnabled) {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode },
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1080, max: 1080 },
+            height: { ideal: 1080, max: 1080 },
+          },
           audio: isAudioEnabled,
         });
       }
