@@ -1,25 +1,30 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import Icon from '@iconify/svelte';
-  let stream = null;; // ストリームを停止するために保持
-  let video = null;
-  let canvas = null;
-  let ctx = null;
-  let width = 0, height = 0; // キャンバスのサイズ
-  const iconSize = 32; // アイコンのサイズ
+  import { getLocalDateTimeString } from '../lib/util.ts'
+
+  let stream: MediaStream | null = null; // ストリームを停止するために保持
+  let video: HTMLVideoElement | null = null;
+  let canvas: HTMLCanvasElement | null = null;
+  let ctx: CanvasRenderingContext2D | null = null;
+  let width: number = 0, height: number = 0; // キャンバスのサイズ
 
   // ズーム・状態管理
-  let zoomLevel = 1; // 1.0 to 3.0
-  let offsetX = 0, offsetY = 0; // ずらし
-  let isDragging = false;
-  let lastMouseX = 0, lastMouseY = 0;
-  let lastDist = 0;
+  let zoomLevel: number = 1; // 1.0 to 3.0
+  let offsetX: number = 0, offsetY: number = 0; // ずらし
+  let isDragging: boolean = false;
+  let lastMouseX: number = 0, lastMouseY: number = 0;
+  let lastDist: number = 0;
 
-  let isRecording = false;
-  let mediaRecorder;
-  let recordedChunks = [];
-  let facingMode = 'user';
-  let isAudioEnabled = true;
+  // カメラ・録画状態
+  let isRecording: boolean = false;
+  let mediaRecorder: MediaRecorder | null;
+  let recordedChunks: Blob[] = [];
+  let facingMode: string = 'user';
+  let isAudioEnabled: boolean = true;
+
+  // その他
+  const iconSize: number = 32; // アイコンのサイズ
 
   onMount(async () => {
     let fMode = localStorage.getItem('SampleCamera_facingMode');
@@ -116,8 +121,7 @@
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
 
       // 2. 日時を印字
-      const now = new Date();
-      const timeStr = now.toLocaleString();
+      const timeStr = getLocalDateTimeString();
       ctx.font = `${w * 0.03}px monospace`;
       ctx.fillStyle = "#0f0";
       ctx.strokeStyle = "black";
@@ -139,7 +143,7 @@
   }
 
   // マウス/ドラッグ操作 (パン)
-  function handleMouseDown(e) {
+  function handleMouseDown(e: MouseEvent | TouchEvent) {
     if (zoomLevel > 1) {
       isDragging = true;
       lastMouseX = e.clientX || e.touches[0].clientX;
@@ -147,7 +151,7 @@
     }
   }
 
-  function handleMouseMove(e) {
+  function handleMouseMove(e: MouseEvent | TouchEvent) {
     // 1本指またはマウス左ボタンでのドラッグ
     if (isDragging && (!e.touches || e.touches.length === 1)) {
       const clientX = e.clientX || e.touches[0].clientX;
@@ -175,7 +179,7 @@
   }
 
   // ピンチズーム処理
-  function handleTouchMove(e) {
+  function handleTouchMove(e: MouseEvent | TouchEvent) {
     if (e.touches.length === 2) {
       const dist = Math.hypot(
         e.touches[0].pageX - e.touches[1].pageX,
@@ -197,7 +201,7 @@
   }
 
   // マウスホイールでのズーム処理
-  function handleWheel(e) {
+  function handleWheel(e: MouseEvent | TouchEvent) {
     // Ctrlキーが押されている場合のみズーム動作をさせる（一般的な挙動に合わせる）
     if (e.ctrlKey) {
       // e.deltaY は下スクロールで正、上スクロールで負の値
