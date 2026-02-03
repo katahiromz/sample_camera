@@ -3,6 +3,7 @@
   import Icon from '@iconify/svelte';
   import { getLocalDateTimeString } from '../lib/util.ts'
   import { _ } from 'svelte-i18n';
+  import { PermissionManager, type PermissionStatusValue } from '../lib/PermissionManager.ts';
 
   let stream: MediaStream | null = null; // ストリームを停止するために保持
   let video: HTMLVideoElement | null = null; // <video>要素
@@ -27,68 +28,118 @@
   let mediaRecorder: MediaRecorder | null; // メディアレコーダー
   let recordedChunks: Blob[] = []; // 録画中のチャンク群
   let facingMode: string = 'user'; // カメラの向き (前面 'user' / 背面 'environment')
+  let cameraError: string | null = null; // エラーメッセージ保持用
+  let cameraPermissionManager: PermissionManager; // カメラ権限監視用
+  let micPermissionManager: PermissionManager; // マイク権限監視用
 
   onMount(async () => {
+    // PermissionManagerの初期化
+    cameraPermissionManager = new PermissionManager('camera' as PermissionName);
+    micPermissionManager = new PermissionManager('microphone' as PermissionName);
+
+    // 権限状態の監視を開始
+    const unsubscribe = cameraPermissionManager.subscribe((status: PermissionStatusValue) => {
+      console.log(`Camera permission status changed to: ${status}`);
+      if (status === 'denied') {
+        cameraError = "カメラのアクセス権限が拒否されています。ブラウザの設定から許可してください。";
+      } else if (status === 'granted' && cameraError) {
+        // 拒否から許可に変わった場合はエラーをクリアして再起動を試みる
+        cameraError = null;
+        startCamera();
+      }
+    });
+
+    // マイク権限の監視
+    const unsubscribeMic = micPermissionManager.subscribe((status: PermissionStatusValue) => {
+      console.log(`Microphone status: ${status}`);
+      if (status === 'denied') {
+        console.warn("マイクのアクセス権限が拒否されました。録画は無音になります。");
+        // マイクが拒否されたら、isAudioEnabled を false にしてカメラを再起動する
+        if (isAudioEnabled) {
+          isAudioEnabled = false;
+          startCamera(); // 音声なしでストリームを再生成
+        }
+      } else if (status === 'granted') {
+        if (!isAudioEnabled) {
+          isAudioEnabled = true;
+          startCamera(); // 音声ありで再起動試行
+        }
+      }
+    });
+
     let fMode = localStorage.getItem('SampleCamera_facingMode');
     if (fMode === 'user' || fMode === 'environment')
       facingMode = fMode;
     startCamera();
     return () => {
       if (window.animationFrameId) cancelAnimationFrame(window.animationFrameId);
+      // コンポーネント破棄時に購読を解除
+      unsubscribe();
+      unsubscribeMic();
     };
   });
 
+  // カメラを起動
   async function startCamera() {
+    // 既存のエラーをリセット
+    cameraError = null; 
+
     // 既存のストリームがあれば停止させる
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
 
     try {
+      // まずは現在の設定（isAudioEnabled）で試行
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: facingMode },
-          width: { ideal: 1080, max: 1080 },
-          height: { ideal: 1080, max: 1080 },
+          width: { ideal: 1080 },
+          height: { ideal: 1080 },
         },
-        audio: { ideal: isAudioEnabled },
+        audio: isAudioEnabled,
       });
-
-      // 実際のfacingModeを取得
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        const settings = videoTrack.getSettings();
-        let actualFacingMode = settings.facingMode || 'unknown';
-        localStorage.setItem('SampleCamera_facingMode', actualFacingMode);
-        facingMode = actualFacingMode;
-        console.log("facingMode:", actualFacingMode);
+    } catch (e) {
+      console.warn("音声付きのカメラ起動に失敗しました。音声なしでリトライします:", e);
+      try {
+        // 音声が原因で失敗した可能性があるため、audio: false でリトライ
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1080 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+        // 音声が取れなかったので状態を更新
+        isAudioEnabled = false;
+      } catch (err) {
+        // 3. 映像すら取れない場合のみ、本当のエラーとする
+        console.error("カメラのアクセスに完全に失敗しました:", err);
+        cameraError = "カメラにアクセスできません。設定を確認してください。";
+        return; // ここで中断
       }
+    }
 
-      // 音声があるかどうかを確認
-      let hasAudioTrack = false;
-      const audioTracks = stream.getAudioTracks();
-      if (audioTracks && audioTracks.length > 0) {
-        const audioTrack = stream.getAudioTracks()[0];
-        if (audioTrack) {
-          hasAudioTrack = true;
-        }
-      }
-      isAudioEnabled = hasAudioTrack;
-      console.log("isAudioEnabled:", isAudioEnabled);
+    // --- 以降、正常にストリームが取得できた場合の処理 ---
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      const settings = videoTrack.getSettings();
+      facingMode = settings.facingMode || facingMode;
+    }
 
-      video.srcObject = stream;
-      video.play();
+    // 実際に音声トラックがあるか確認
+    isAudioEnabled = stream.getAudioTracks().length > 0;
 
-      // 初回のみdrawを開始（既に動いている場合は何もしない）
-      if (!window.animationFrameId) {
-         const tick = () => {
-           draw();
-           window.animationFrameId = requestAnimationFrame(tick);
-         };
-         tick();
-      }
-    } catch (err) {
-      console.error("カメラまたはマイクのアクセスに失敗しました:", err);
+    video.srcObject = stream;
+    video.play();
+
+    if (!window.animationFrameId) {
+      const tick = () => {
+        draw();
+        window.animationFrameId = requestAnimationFrame(tick);
+      };
+      tick();
     }
     isSwitching = false;
   }
@@ -302,6 +353,14 @@
     </div>
   {/if}
 
+  {#if cameraError}
+    <div class="error-overlay">
+      <Icon icon="solar:videocamera-record-broken-linear" width={64} />
+      <p>{cameraError}</p>
+      <button on:click={startCamera} class="btn">{$_('retry')}</button>
+    </div>
+  {/if}
+
   <video bind:this={video} autoplay playsinline muted class="hidden"></video>
 
   <canvas
@@ -429,5 +488,22 @@
     border-radius: 8px;
     font-weight: bold;
     pointer-events: none; /* 下のキャンバス操作を邪魔しない */
+  }
+
+  .error-overlay {
+    position: absolute;
+    z-index: 20;
+    color: #ff4d4d; /* 警告色 */
+    background: rgba(0, 0, 0, 0.8);
+    text-align: center;
+    padding: 30px;
+    border-radius: 12px;
+    border: 1px solid #ff4d4d;
+    max-width: 80%;
+  }
+
+  .error-overlay p {
+    margin: 15px 0;
+    color: white;
   }
 </style>

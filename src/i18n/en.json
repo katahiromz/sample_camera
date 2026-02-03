@@ -3,5 +3,6 @@
 	"take_photo": "Take photo",
 	"recording": "Recording",
 	"stop_recording": "Stop",
-	"switching_camera": "Switching camera..."
+	"switching_camera": "Switching camera...",
+	"retry": "Retry"
 }
