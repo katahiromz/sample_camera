@@ -2,5 +2,6 @@
 	"switch_camera": "カメラ切替",
 	"take_photo": "写真撮影",
 	"recording": "動画撮影",
-	"stop-recording": "録画停止"
+	"stop_recording": "録画停止",
+	"switching_camera": "カメラ切り替え中..."
 }

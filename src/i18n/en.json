@@ -2,5 +2,6 @@
 	"switch_camera": "Switch camera",
 	"take_photo": "Take photo",
 	"recording": "Recording",
-	"stop-recording": "Stop"
+	"stop_recording": "Stop",
+	"switching_camera": "Switching camera..."
 }

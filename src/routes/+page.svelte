@@ -23,6 +23,7 @@
   // カメラ・録画状態
   let isRecording: boolean = false; // 録画中か？
   let isAudioEnabled: boolean = true; // 音声が有効か？
+  let isSwitching: boolean = false; // カメラ切り替え中か？
   let mediaRecorder: MediaRecorder | null; // メディアレコーダー
   let recordedChunks: Blob[] = []; // 録画中のチャンク群
   let facingMode: string = 'user'; // カメラの向き (前面 'user' / 背面 'environment')
@@ -85,6 +86,7 @@
     } catch (err) {
       console.error("カメラまたはマイクのアクセスに失敗しました:", err);
     }
+    isSwitching = false;
   }
 
   // マイクのオンオフを切り替えてカメラを再起動
@@ -95,6 +97,7 @@
 
   // カメラを切り替える関数
   async function toggleCamera() {
+    isSwitching = true;
     facingMode = facingMode === 'user' ? 'environment' : 'user';
     await startCamera();
   }
@@ -288,6 +291,13 @@
 </script>
 
 <main class="camera-container">
+  {#if isSwitching}
+    <div class="loading-overlay">
+      <Icon icon="solar:camera-linear" width={64} /><br />
+      <span>{$_('switching_camera')}</span>
+    </div>
+  {/if}
+
   <video bind:this={video} autoplay playsinline muted class="hidden"></video>
 
   <canvas
@@ -316,7 +326,7 @@
 
     <button on:click={toggleRecording} class="btn video" class:recording={isRecording}>
       <Icon icon={isRecording ? "solar:stop-circle-linear" : "solar:videocamera-record-linear"} width={iconSize} />
-      <span>{isRecording ? $_('stop-recording') : $_('recording')}</span>
+      <span>{isRecording ? $_('stop_recording') : $_('recording')}</span>
     </button>
   </div>
 </main>
@@ -403,5 +413,17 @@
     0% { opacity: 1; }
     50% { opacity: 0.7; }
     100% { opacity: 1; }
+  }
+
+  .loading-overlay {
+    position: absolute;
+    z-index: 10;
+    color: white;
+    background: rgba(0, 0, 0, 0.6);
+    text-align: center;
+    padding: 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    pointer-events: none; /* 下のキャンバス操作を邪魔しない */
   }
 </style>
