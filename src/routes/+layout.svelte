@@ -29,6 +29,7 @@
 		height: 100vh; 
 		height: 100dvh;
 		width: 100vw;
+		width: 100dvw;
 	">
 		Loading...
 	</div>
